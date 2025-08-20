@@ -1,3 +1,4 @@
+import textwrap
 from abc import ABC, abstractmethod
 
 class Cliente:
@@ -95,7 +96,7 @@ class ContaCorrente(Conta):
 
     def __str__(self):
         return f"""\
-            Ageência: {self.agencia}
+            Agência: {self.agencia}
             Conta Corrente: {self.numero}
             Cliente: {self.cliente.nome}
         """
@@ -171,18 +172,8 @@ menu = """
 [q] Sair
 
 => """
-LIMITE_SAQUES = 3
-AGENCIA = "0001"
-
-saldo = 0
-limite = 500
-extrato = ""
-numero_saques = 0
 usuarios = []
 contas = []
-
-
-
 
 def depositar(clientes):
     cpf = input("Informe o CPF do usuário: ")
@@ -202,58 +193,94 @@ def depositar(clientes):
     cliente.realizar_transacao(conta, transacao)
 
 def recuperar_conta_cliente(cliente):
-    pass
-
-
-def print_extrato(saldo, /, *, extrato):
-    print("\n============ EXTRATO BANCÁRIO ==========")
-    print("Não foram realizadas movimentações." if not extrato else extrato)
-    print(f"\nSaldo: R$ {saldo:.2f}")
-    print("==========================================")
-
-def criar_usuario(usuarios):
-    cpf = input("Por favor, informe o CPF (Somente números): ")
-    usuario = procurar_usuario(cpf, usuarios)
-    if usuario:
-        print("Usuário já existe!")
+    if not cliente.conta:
+        print("Cliente não possui conta.")
         return
 
-    nome = input("Informe o nome do usuário: ")
+    return cliente.conta[0]
+
+
+def print_extrato(clientes):
+    cpf = input("Informe o CPF do saldo: ")
+    cliente = procurar_cliente(cpf, clientes)
+
+    if not cliente:
+        print("Cliente não encontrado.")
+        return
+
+    conta = recuperar_conta_cliente(cliente)
+    if not conta:
+        return
+
+    print("\n============ EXTRATO BANCÁRIO ==========")
+    transacoes = conta.historico.transacoes
+
+    extrato = ""
+    if not transacoes:
+        extrato = "Não foram realizadas movimentações."
+    else:
+        for transacao in transacoes:
+            extrato += f"\n{transacao}['tipo']: R$ {transacao['valor']:.2f}"
+
+    print(extrato)
+    print(f"\nSaldo: R$ {conta.saldo:.2f}")
+    print("==========================================")
+
+def criar_clientes(clientes):
+    cpf = input("Por favor, informe o CPF (Somente números): ")
+    cliente = procurar_cliente(cpf, clientes)
+    if cliente:
+        print("Cliente já existe no banco!")
+        return
+
+    nome = input("Informe o nome do cliente: ")
     data_nascimento = input("Informe a data de nascimento (dd/mm/aaaa): ")
     endereco = input("Informe o endereço: (logradouro, número, bairro, cidade/estado(sigla)): ")
 
-    usuarios.append({
-        "cpf": cpf,
-        "nome": nome,
-        "data_nascimento": data_nascimento,
-        "endereco": endereco
-    })
+    cliente = PessoaFisica(nome=nome, data_nascimento=data_nascimento, cpf=cpf, endereco=endereco)
+
+    clientes.append(cliente)
     print("Usuário criado com sucesso!")
 
-def procurar_cliente(cpf, cliente):
-    clientes_filtrados = [cliente for cliente in clientes if cliente.cpf] == cpf]
+def procurar_cliente(cpf, clientes):
+    clientes_filtrados = [cliente for cliente in clientes if cliente.cpf == cpf]
     return clientes_filtrados[0] if clientes_filtrados else None
 
-def criar_conta(usuarios, AGENCIA, contas):
+def criar_conta(numero_conta, clientes, contas):
     cpf = input("Informe o CPF do usuário: ")
-    usuario = procurar_usuario(cpf, usuarios)
+    cliente = procurar_cliente(cpf, clientes)
 
-    if usuario:
-        numero_conta = len(contas) + 1
-        contas.append({"numero": numero_conta, "usuario": usuario})
-        print(f"Conta criada com sucesso! Número da conta: {numero_conta}")
-
-    print("Usuário não encontrado. Conta não criada.")
-
-def listar_contas(contas):
-    if not contas:
-        print("Nenhuma conta cadastrada.")
+    if not cliente:
+        print("Cliente não encontrado!")
         return
 
-    print("\n=== Lista de Contas ===")
+    conta = ContaCorrente.nova_conta(cliente=cliente, numero=numero_conta)
+    contas.append(conta)
+    cliente.contas.append(conta)
+
+    print(f"Conta criada com sucesso! Número da conta: {numero_conta}")
+
+def listar_contas(contas):
     for conta in contas:
-        print(f"Conta Número: {conta['numero']}, Usuário: {conta['usuario']['nome']} (CPF: {conta['usuario']['cpf']})")
-    print("========================")
+        print("=" * 100)
+        print(textwrap.dedent(str(conta)))
+
+def sacar(clientes):
+    cpf = input("Informe o CPF do usuário: ")
+    cliente = procurar_cliente(cpf, clientes)
+
+    if not cliente:
+        print("Cliente não encontrado.")
+        return
+
+    valor = float(input("Informe o valor do saque: "))
+    transacao = Saque(valor)
+
+    conta = recuperar_conta_cliente(cliente)
+    if not conta:
+        return
+
+    cliente.realizar_transacao(conta, transacao)
 
 while True:
     clientes = []
@@ -267,10 +294,10 @@ while True:
         sacar(clientes)
 
     elif opcao == "e":
-        exibir_extrato(clientes)
+        print_extrato(clientes)
 
     elif opcao == "cu":
-        criar_usuario(clientes)
+        criar_clientes(clientes)
 
     elif opcao == "cc":
         numero_conta = len(contas) + 1
